@@ -1,6 +1,6 @@
 {
   "name": "@buildproven/license-core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Shared license signing & verification primitives for BuildProven products (RSA-SHA256, signed registry).",
   "type": "module",
   "main": "./dist/index.cjs",

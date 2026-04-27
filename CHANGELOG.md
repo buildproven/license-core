@@ -5,6 +5,14 @@ All notable changes to `@buildproven/license-core` will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-04-27
+
+### Changed
+
+- OSS-readiness scrub: removed `BuildProven`-specific strings from public surface (registry `_metadata.description`, type doc comments). Wire format unchanged; signatures from 1.0.0 still verify.
+- Added `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`.
+- Made golden-vector test path configurable via `QAA_SIGNING_PATH` env var instead of hard-coded.
+
 ## [1.0.0] - 2026-04-25
 
 Initial public release.
