@@ -28,6 +28,6 @@ jobs:
 
       - run: npm run build
 
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # No token — npm Trusted Publishing via OIDC (configured on npmjs.com).
+      # See: https://docs.npmjs.com/trusted-publishers
+      - run: npm publish --access public --provenance
