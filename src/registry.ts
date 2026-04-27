@@ -24,7 +24,7 @@ export function buildSignedRegistry(
       version: '1.0',
       created: now,
       lastUpdate: now,
-      description: 'BuildProven license registry — populated by fulfillment webhook',
+      description: 'License registry — populated by fulfillment webhook',
       algorithm: 'rsa-sha256',
       keyId,
       registrySignature,

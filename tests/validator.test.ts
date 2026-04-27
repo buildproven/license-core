@@ -60,7 +60,7 @@ describe('validateRegistryEntry', () => {
 
   it('accepts a valid entry with matching email', () => {
     const licenseKey = 'QAA-ABCD-1234-EFGH-5678';
-    const email = 'brett@example.com';
+    const email = 'user@example.com';
     const entry = makeEntry({ licenseKey, email });
     const result = validateRegistryEntry({
       licenseKey,
@@ -73,7 +73,7 @@ describe('validateRegistryEntry', () => {
 
   it('rejects entry when user email does not match', () => {
     const licenseKey = 'QAA-ABCD-1234-EFGH-5678';
-    const entry = makeEntry({ licenseKey, email: 'brett@example.com' });
+    const entry = makeEntry({ licenseKey, email: 'user@example.com' });
     const result = validateRegistryEntry({
       licenseKey,
       entry,
@@ -129,7 +129,7 @@ describe('validateRegistryEntry', () => {
 describe('verifyRegistryMetadata', () => {
   const licenseKey = 'QAA-ABCD-1234-EFGH-5678';
   const entries: Registry = {
-    [licenseKey]: makeEntry({ licenseKey, email: 'brett@example.com' }),
+    [licenseKey]: makeEntry({ licenseKey, email: 'user@example.com' }),
   };
 
   it('returns entries when registry signature is valid', () => {

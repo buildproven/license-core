@@ -24,17 +24,20 @@ import {
 } from '../src/signing.js';
 import { hashEmail, buildLicensePayload } from '../src/payload.js';
 
-const QAA_PATH = '/Users/brettstark/Projects/products/qa-architect/lib/license-signing.js';
+// Optional path to QA Architect's deployed lib/license-signing.js for byte-for-byte
+// compatibility checks. Override with QAA_SIGNING_PATH env var; otherwise these
+// tests are skipped (CI without the QAA repo on disk simply won't run them).
+const QAA_PATH = process.env.QAA_SIGNING_PATH ?? '';
 const require = createRequire(import.meta.url);
 
-// Skip these tests if QAA isn't checked out alongside this package.
-const QAA_AVAILABLE = existsSync(QAA_PATH);
+const QAA_AVAILABLE = QAA_PATH !== '' && existsSync(QAA_PATH);
 
 const skipIfNoQaa = QAA_AVAILABLE ? describe : describe.skip;
 
 skipIfNoQaa('golden vectors against deployed QAA license-signing.js', () => {
+  // QAA_PATH is guaranteed non-empty here because skipIfNoQaa is .skip when empty.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const qaa = require(QAA_PATH) as {
+  const qaa = (QAA_AVAILABLE ? require(QAA_PATH) : {}) as {
     stableStringify: (v: unknown) => string;
     hashEmail: (e: string) => string | null;
     buildLicensePayload: (opts: Record<string, unknown>) => Record<string, unknown>;
@@ -87,11 +90,11 @@ skipIfNoQaa('golden vectors against deployed QAA license-signing.js', () => {
   }
 
   it('hashEmail matches QAA for valid email', () => {
-    expect(hashEmail('brett@example.com')).toBe(qaa.hashEmail('brett@example.com'));
+    expect(hashEmail('user@example.com')).toBe(qaa.hashEmail('user@example.com'));
   });
 
   it('hashEmail matches QAA for case + whitespace', () => {
-    expect(hashEmail('  Brett@Example.COM  ')).toBe(qaa.hashEmail('  Brett@Example.COM  '));
+    expect(hashEmail('  User@Example.COM  ')).toBe(qaa.hashEmail('  User@Example.COM  '));
   });
 
   it('hashEmail matches QAA for invalid email (both null)', () => {

@@ -1,5 +1,5 @@
 /**
- * Core types for BuildProven license payloads.
+ * Core types for license payloads.
  *
  * IMPORTANT: changing the shape of LicensePayload or RegistryEntry
  * breaks signature verification across every product in the field.

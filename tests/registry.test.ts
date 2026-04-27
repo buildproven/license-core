@@ -15,7 +15,7 @@ const sampleEntry: RegistryEntry = {
   tier: 'PRO',
   isFounder: false,
   issued: '2026-01-01T00:00:00.000Z',
-  emailHash: hashEmail('brett@example.com'),
+  emailHash: hashEmail('user@example.com'),
   signature: 'placeholder',
   customerId: 'cus_test123',
   keyId: 'default',

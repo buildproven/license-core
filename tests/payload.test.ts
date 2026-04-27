@@ -3,7 +3,7 @@ import { normalizeEmail, hashEmail, buildLicensePayload } from '../src/payload.j
 
 describe('normalizeEmail', () => {
   it('lowercases and trims', () => {
-    expect(normalizeEmail('  Brett@Example.COM  ')).toBe('brett@example.com');
+    expect(normalizeEmail('  User@Example.COM  ')).toBe('user@example.com');
   });
 
   it('returns null for missing @', () => {
@@ -29,17 +29,17 @@ describe('normalizeEmail', () => {
 
 describe('hashEmail', () => {
   it('produces 64-char hex string', () => {
-    const hash = hashEmail('brett@example.com');
+    const hash = hashEmail('user@example.com');
     expect(hash).toHaveLength(64);
     expect(hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it('is case-insensitive (same hash for upper/lower)', () => {
-    expect(hashEmail('brett@example.com')).toBe(hashEmail('BRETT@EXAMPLE.COM'));
+    expect(hashEmail('user@example.com')).toBe(hashEmail('USER@EXAMPLE.COM'));
   });
 
   it('is trim-insensitive', () => {
-    expect(hashEmail('brett@example.com')).toBe(hashEmail('  brett@example.com  '));
+    expect(hashEmail('user@example.com')).toBe(hashEmail('  user@example.com  '));
   });
 
   it('returns null for invalid email', () => {
@@ -79,7 +79,7 @@ describe('buildLicensePayload', () => {
   });
 
   it('includes emailHash when provided', () => {
-    const hash = hashEmail('brett@example.com')!;
+    const hash = hashEmail('user@example.com')!;
     const payload = buildLicensePayload({ ...base, emailHash: hash });
     expect(payload.emailHash).toBe(hash);
   });
