@@ -22,7 +22,10 @@ jobs:
           # inject NODE_AUTH_TOKEN and break OIDC trusted publishing.
 
       # Upgrade npm to a version that supports Trusted Publishing (>=11.5.1).
-      - run: npm install -g npm@latest
+      # Pin to 11.13.x — newer npm has a bootstrap bug where `npm i -g npm@latest`
+      # fails with `Cannot find module 'promise-retry'` when installed on top
+      # of the npm shipped with Node 22 LTS.
+      - run: npm install -g npm@11.13
 
       - run: npm ci
 
