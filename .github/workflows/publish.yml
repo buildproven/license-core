@@ -18,7 +18,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          # No registry-url here — setup-node's auto-generated .npmrc would
+          # inject NODE_AUTH_TOKEN and break OIDC trusted publishing.
+
+      # Upgrade npm to a version that supports Trusted Publishing (>=11.5.1).
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
@@ -28,6 +32,6 @@ jobs:
 
       - run: npm run build
 
-      # No token — npm Trusted Publishing via OIDC (configured on npmjs.com).
-      # See: https://docs.npmjs.com/trusted-publishers
+      # OIDC Trusted Publishing — no token needed.
+      # https://docs.npmjs.com/trusted-publishers
       - run: npm publish --access public --provenance
