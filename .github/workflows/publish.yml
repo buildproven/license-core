@@ -17,15 +17,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          # Pinning Node 20 — Node 22.22.2 in the GitHub-hosted toolcache ships
+          # with a broken npm that can't `npm install -g npm@*` (missing
+          # transitive `promise-retry`). Revisit when Node 22's bundled npm fixes
+          # this OR when v5 of these actions ship Node 24 by default.
+          node-version: '20'
           # No registry-url here — setup-node's auto-generated .npmrc would
           # inject NODE_AUTH_TOKEN and break OIDC trusted publishing.
 
       # Upgrade npm to a version that supports Trusted Publishing (>=11.5.1).
-      # Pin to 11.13.x — newer npm has a bootstrap bug where `npm i -g npm@latest`
-      # fails with `Cannot find module 'promise-retry'` when installed on top
-      # of the npm shipped with Node 22 LTS.
-      - run: npm install -g npm@11.13
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
