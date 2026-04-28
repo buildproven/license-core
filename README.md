@@ -153,6 +153,40 @@ openssl rsa -in private.pem -pubout -out public.pem
 
 The package never handles key generation, storage, or rotation — that's your call. Use whatever secret manager you already have.
 
+## Publishing your own fork (Trusted Publishing setup)
+
+If you fork this and want to publish under your own scope via npm Trusted Publishing (no `NPM_TOKEN`), there's one gotcha worth documenting because it cost an hour during the initial release here:
+
+**Don't pass `registry-url` to `actions/setup-node`.** It auto-generates an `.npmrc` with a placeholder `${NODE_AUTH_TOKEN}` value, which makes `npm publish` authenticate via that fake token instead of falling through to OIDC. Result: a `404 Not Found` from the registry that looks like a misconfigured trusted publisher.
+
+The minimal working workflow:
+
+```yaml
+name: Publish to npm
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for OIDC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          # NO registry-url here — it would inject a fake NODE_AUTH_TOKEN
+      - run: npm install -g npm@latest    # need >=11.5.1 for Trusted Publishing
+      - run: npm ci
+      - run: npm test
+      - run: npm publish --access public --provenance
+```
+
+On the npm side, configure the trusted publisher under your package's settings page after the package exists (chicken-and-egg: do the *first* publish via a granular access token, then switch to OIDC for everything after).
+
 ## License
 
 [MIT](./LICENSE) © Vibe Build Lab LLC
