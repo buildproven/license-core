@@ -153,6 +153,33 @@ openssl rsa -in private.pem -pubout -out public.pem
 
 The package never handles key generation, storage, or rotation — that's your call. Use whatever secret manager you already have.
 
+### Rotating a signing key
+
+Every entry in the registry has a `keyId` field, and `_metadata.keyId` records which key signed the registry as a whole. To rotate without breaking already-shipped clients:
+
+1. Generate a new keypair. Add the new private key to your fulfillment env vars (e.g. `LICENSE_PRIVATE_KEY_V2`).
+2. Update fulfillment to sign new entries with the new key, passing `keyId: 'v2'`:
+
+   ```ts
+   buildSignedRegistry(entries, NEW_PRIVATE_KEY, 'v2');
+   ```
+
+3. **Bundle BOTH public keys with your client.** When verifying, look up the right key based on `entry.keyId`:
+
+   ```ts
+   const publicKeys = { default: OLD_PUBLIC_KEY, v2: NEW_PUBLIC_KEY };
+   const result = validateRegistryEntry({
+     licenseKey,
+     entry,
+     publicKeyPem: publicKeys[entry.keyId] ?? publicKeys.default,
+   });
+   ```
+
+4. Existing entries (signed with `keyId: 'default'`) continue to verify under the old public key. New entries verify under the new key.
+5. Once all old entries have expired or been re-issued, you can ship a client release that drops the old public key.
+
+The package leaves `keyId` as a free-form string, so use whatever convention you like (`v1`/`v2`, dates, fingerprints).
+
 ## Recurring billing & subscriptions
 
 The frozen-contract v1.x API doesn't include `expiresAt` on payloads, so subscriptions need a layer above the package. Two patterns work:
