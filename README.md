@@ -153,6 +153,44 @@ openssl rsa -in private.pem -pubout -out public.pem
 
 The package never handles key generation, storage, or rotation — that's your call. Use whatever secret manager you already have.
 
+## Recurring billing & subscriptions
+
+The frozen-contract v1.x API doesn't include `expiresAt` on payloads, so subscriptions need a layer above the package. Two patterns work:
+
+### Pattern A — short-lived registries (re-sign on a schedule)
+
+Your fulfillment service holds the source-of-truth subscription state (Stripe, paddle, whatever). On a cron/interval (e.g. once an hour), it walks active customers, builds a fresh `Registry`, calls `buildSignedRegistry`, and serves the result. Cancelled customers simply stop appearing in the next signed registry.
+
+The client refreshes the registry once per launch + once per N hours/days, and falls back to the locally-cached signed JSON if offline. A 7-day grace period (registry valid 7 days offline) is typical — long enough that flaky internet doesn't lock paying customers out, short enough that cancellations propagate within a week.
+
+```ts
+// Client side
+async function getRegistry() {
+  try {
+    const res = await fetch(REGISTRY_URL, { signal: AbortSignal.timeout(5000) });
+    const signed = await res.json();
+    const entries = verifyRegistryMetadata(signed, PUBLIC_KEY);
+    await fs.writeFile(CACHE_PATH, JSON.stringify(signed));   // cache for offline
+    return entries;
+  } catch {
+    const cached = JSON.parse(await fs.readFile(CACHE_PATH, 'utf8'));
+    return verifyRegistryMetadata(cached, PUBLIC_KEY);        // offline path
+  }
+}
+```
+
+### Pattern B — long-lived entries + revocation list
+
+Entries are signed once and stay valid forever. A separate signed `revoked.json` lists keys that should no longer verify. The client fetches both and rejects any license that appears in the revocations file.
+
+This is faster on the fulfillment side (you don't re-sign the whole registry every hour) but requires more client logic. Tracked in the v2.x roadmap because v1.x doesn't ship a revocation helper yet.
+
+### Which pattern when?
+
+- **Few customers, frequent cancellations:** Pattern A — re-signing daily is cheap.
+- **Many customers, rare cancellations:** Pattern B — appending to a small revocations list is cheaper than re-signing thousands of entries.
+- **Lifetime licenses only:** neither — sign once on purchase, never re-sign.
+
 ## Publishing your own fork (Trusted Publishing setup)
 
 If you fork this and want to publish under your own scope via npm Trusted Publishing (no `NPM_TOKEN`), there's one gotcha worth documenting because it cost an hour during the initial release here:
