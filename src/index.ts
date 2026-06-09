@@ -20,6 +20,10 @@ export type { ValidatedEntry, ValidationFailure, ValidationResult } from './vali
 // License key format
 export { licenseKeyPattern, isValidLicenseKey, normalizeLicenseKey } from './key-format.js';
 
+// Owner / developer mode (does filesystem + env I/O; one impl for every product)
+export { isDeveloperMode } from './developer-mode.js';
+export type { DeveloperModeConfig } from './developer-mode.js';
+
 // Types
 export type {
   Tier,
