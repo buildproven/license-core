@@ -40,10 +40,23 @@ function shuffleObjectKeys(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(shuffleObjectKeys);
   const entries = Object.entries(value as Record<string, unknown>);
-  // Reverse to ensure a different key order in the new object
+  // Reverse to ensure a different key order in the new object.
   const reversed = [...entries].reverse();
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of reversed) out[k] = shuffleObjectKeys(v);
+  // Null-prototype object + defineProperty: fast-check's fc.dictionary can
+  // generate "__proto__" as a real own key. A plain `out[k] = v` would treat
+  // out["__proto__"] = {} as a prototype assignment (dropping the key), so the
+  // shuffled object would lose it and diverge from the original — a test-helper
+  // footgun, not a stableStringify bug. defineProperty stores it as a normal
+  // enumerable own property, matching how the input object holds it.
+  const out: Record<string, unknown> = Object.create(null);
+  for (const [k, v] of reversed) {
+    Object.defineProperty(out, k, {
+      value: shuffleObjectKeys(v),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
   return out;
 }
 
@@ -68,6 +81,23 @@ describe('stableStringify properties', () => {
       }),
       { numRuns: 500 },
     );
+  });
+
+  it('treats "__proto__" as a normal own key (deterministic regression)', () => {
+    // fc.dictionary can emit "__proto__" as a real own property; stableStringify
+    // reads it via Object.keys (correct), but a naive shuffle helper using
+    // out[k]=v would drop it. Pin the case so it can't depend on a fast-check
+    // seed: the original, the shuffled rebuild, and a null-proto twin must all
+    // serialize identically with "__proto__" present.
+    const withProto = Object.defineProperty({ a: 1 }, '__proto__', {
+      value: { nested: true },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    const out = stableStringify(withProto);
+    expect(out).toContain('"__proto__"');
+    expect(stableStringify(shuffleObjectKeys(withProto))).toBe(out);
   });
 
   it('property: output parses back to a structurally equal value', () => {
