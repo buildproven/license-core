@@ -9,3 +9,5 @@ coverage/
 *.pem
 .eslintcache
 *.tsbuildinfo
+# npm pack output (build artifact; the published package is the source of truth)
+*.tgz
