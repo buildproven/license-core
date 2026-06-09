@@ -197,11 +197,11 @@ async function getRegistry() {
     const res = await fetch(REGISTRY_URL, { signal: AbortSignal.timeout(5000) });
     const signed = await res.json();
     const entries = verifyRegistryMetadata(signed, PUBLIC_KEY);
-    await fs.writeFile(CACHE_PATH, JSON.stringify(signed));   // cache for offline
+    await fs.writeFile(CACHE_PATH, JSON.stringify(signed)); // cache for offline
     return entries;
   } catch {
     const cached = JSON.parse(await fs.readFile(CACHE_PATH, 'utf8'));
-    return verifyRegistryMetadata(cached, PUBLIC_KEY);        // offline path
+    return verifyRegistryMetadata(cached, PUBLIC_KEY); // offline path
   }
 }
 ```
@@ -237,20 +237,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write   # required for OIDC
+      id-token: write # required for OIDC
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           # NO registry-url here — it would inject a fake NODE_AUTH_TOKEN
-      - run: npm install -g npm@latest    # need >=11.5.1 for Trusted Publishing
+      - run: npm install -g npm@latest # need >=11.5.1 for Trusted Publishing
       - run: npm ci
       - run: npm test
       - run: npm publish --access public --provenance
 ```
 
-On the npm side, configure the trusted publisher under your package's settings page after the package exists (chicken-and-egg: do the *first* publish via a granular access token, then switch to OIDC for everything after).
+On the npm side, configure the trusted publisher under your package's settings page after the package exists (chicken-and-egg: do the _first_ publish via a granular access token, then switch to OIDC for everything after).
 
 ## License
 

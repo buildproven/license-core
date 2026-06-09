@@ -40,10 +40,24 @@ describe('isValidLicenseKey', () => {
   it('rejects malformed key', () => {
     expect(isValidLicenseKey('QAA-ABC-1234-EFGH-5678', 'QAA')).toBe(false);
   });
+
+  it('returns false for non-string input instead of throwing', () => {
+    // Keys arrive from license files / env / CLI args — any can be undefined or
+    // non-string for incomplete/corrupt input. Must not throw a TypeError.
+    expect(isValidLicenseKey(undefined as unknown as string, 'QAA')).toBe(false);
+    expect(isValidLicenseKey(null as unknown as string, 'QAA')).toBe(false);
+    expect(isValidLicenseKey(123 as unknown as string, 'QAA')).toBe(false);
+  });
 });
 
 describe('normalizeLicenseKey', () => {
   it('uppercases and trims', () => {
     expect(normalizeLicenseKey('  qaa-abcd-1234-efgh-5678 ')).toBe('QAA-ABCD-1234-EFGH-5678');
+  });
+
+  it('returns "" for non-string input instead of throwing', () => {
+    expect(normalizeLicenseKey(undefined as unknown as string)).toBe('');
+    expect(normalizeLicenseKey(null as unknown as string)).toBe('');
+    expect(normalizeLicenseKey(123 as unknown as string)).toBe('');
   });
 });

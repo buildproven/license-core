@@ -17,11 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'fs';
 import { createRequire } from 'module';
 import { generateKeyPairSync } from 'crypto';
-import {
-  stableStringify,
-  signPayload,
-  verifyPayload,
-} from '../src/signing.js';
+import { stableStringify, signPayload, verifyPayload } from '../src/signing.js';
 import { hashEmail, buildLicensePayload } from '../src/payload.js';
 
 // Optional path to QA Architect's deployed lib/license-signing.js for byte-for-byte
@@ -74,7 +70,13 @@ skipIfNoQaa('golden vectors against deployed QAA license-signing.js', () => {
       },
     },
     { name: 'array', value: [3, 1, 2] },
-    { name: 'array of objects', value: [{ b: 2, a: 1 }, { d: 4, c: 3 }] },
+    {
+      name: 'array of objects',
+      value: [
+        { b: 2, a: 1 },
+        { d: 4, c: 3 },
+      ],
+    },
     { name: 'unicode', value: { name: 'café', emoji: '✓' } },
     { name: 'null value', value: { x: null, y: undefined } },
     { name: 'numbers', value: { a: 0, b: -1, c: 1.5, d: 1e10 } },

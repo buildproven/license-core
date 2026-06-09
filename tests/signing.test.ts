@@ -78,9 +78,9 @@ describe('signPayload / verifyPayload', () => {
 
   it('rejects tampered payload (different key)', () => {
     const sig = signPayload(payload, privateKey);
-    expect(verifyPayload({ ...payload, licenseKey: 'QAA-XXXX-XXXX-XXXX-XXXX' }, sig, publicKey)).toBe(
-      false,
-    );
+    expect(
+      verifyPayload({ ...payload, licenseKey: 'QAA-XXXX-XXXX-XXXX-XXXX' }, sig, publicKey),
+    ).toBe(false);
   });
 
   it('rejects corrupted signature', () => {
