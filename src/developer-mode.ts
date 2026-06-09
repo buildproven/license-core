@@ -11,7 +11,7 @@
  * set the env var or drop a marker file to cheat the gate.
  */
 
-import { existsSync } from "fs";
+import { existsSync } from 'fs';
 
 export interface DeveloperModeConfig {
   /** Env var that, when "true", enables owner mode. e.g. "QAA_DEVELOPER", "CKIT_DEVELOPER". */
@@ -29,16 +29,14 @@ export interface DeveloperModeConfig {
  * as "no marker" elsewhere.
  */
 export function isDeveloperMode(config: DeveloperModeConfig): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-  if (process.env[config.envVar] === "true") return true;
+  if (process.env.NODE_ENV === 'production') return false;
+  if (process.env[config.envVar] === 'true') return true;
   try {
     if (existsSync(config.markerFile)) return true;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === "ELOOP" && process.env.NODE_ENV === "production") {
-      throw new Error(
-        "Symlink loop detected in license marker path — possible tampering",
-      );
+    if (code === 'ELOOP' && process.env.NODE_ENV === 'production') {
+      throw new Error('Symlink loop detected in license marker path — possible tampering');
     }
     // Any other error (incl. ENOENT) means "no usable marker".
   }

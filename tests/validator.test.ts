@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateKeyPairSync } from 'crypto';
-import {
-  validateRegistryEntry,
-  verifyRegistryMetadata,
-} from '../src/validator.js';
+import { validateRegistryEntry, verifyRegistryMetadata } from '../src/validator.js';
 import { buildSignedRegistry } from '../src/registry.js';
 import { signPayload } from '../src/signing.js';
 import { buildLicensePayload, hashEmail } from '../src/payload.js';

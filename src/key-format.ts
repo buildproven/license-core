@@ -13,7 +13,7 @@ export function licenseKeyPattern(prefix: string): RegExp {
 }
 
 export function isValidLicenseKey(key: string, prefix: string): boolean {
-  if (typeof key !== "string") return false;
+  if (typeof key !== 'string') return false;
   return licenseKeyPattern(prefix).test(key.trim().toUpperCase());
 }
 
@@ -23,6 +23,6 @@ export function normalizeLicenseKey(key: string): string {
   // Return "" rather than throwing so the caller's validation reports an
   // invalid key instead of a TypeError. (Behavior preserved from qa-architect's
   // original normalizeLicenseKey when this was extracted into the package.)
-  if (typeof key !== "string") return "";
+  if (typeof key !== 'string') return '';
   return key.trim().toUpperCase();
 }
