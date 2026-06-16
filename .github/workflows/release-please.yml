@@ -1,0 +1,49 @@
+name: Release Please
+
+# release-please maintains a "release PR" that aggregates Conventional Commits
+# landing on `main`. When that PR is merged, this action creates a GitHub Release
+# and pushes the tag `v<version>` (e.g. v1.2.0).
+#
+# Composition with publish.yml (DO NOT duplicate publishing here):
+#   - publish.yml triggers on `push: tags: v*.*.*` and publishes to npm via OIDC.
+#   - This workflow's ONLY job is to cut the tag/release; publish.yml then fires.
+#
+# REQUIRED OWNER ACTION — RELEASE_PLEASE_TOKEN:
+#   GitHub deliberately suppresses workflow triggering for events (tag/branch
+#   pushes, releases) created using the default GITHUB_TOKEN. If release-please
+#   pushed the tag with GITHUB_TOKEN, publish.yml's `on: push: tags` would NOT
+#   fire — npm would never publish. The standard documented fix is to run
+#   release-please under a separate identity (a PAT), so the tag push is a
+#   "real" event that DOES trigger publish.yml.
+#
+#   Repo owner must create a fine-grained Personal Access Token scoped to THIS
+#   repository (buildproven/license-core) with these repository permissions:
+#       - Contents:      Read and write   (push tags, create releases, commit CHANGELOG)
+#       - Pull requests: Read and write   (open/maintain the release PR)
+#   Save it as the Actions secret `RELEASE_PLEASE_TOKEN`
+#   (Settings → Secrets and variables → Actions → New repository secret).
+#
+#   Until that secret exists, this workflow will fail to authenticate (or, if it
+#   ran with GITHUB_TOKEN, would silently not trigger publish.yml). publish.yml
+#   also retains `workflow_dispatch` as a manual fallback if needed.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          # PAT (NOT GITHUB_TOKEN) so the pushed tag triggers publish.yml.
+          # See the REQUIRED OWNER ACTION block above.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
