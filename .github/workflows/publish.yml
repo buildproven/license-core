@@ -1,0 +1,84 @@
+name: Publish to npm
+
+# This workflow owns the npm publish step and NOTHING ELSE. It deliberately
+# keeps its filename stable (`publish.yml`) because npm OIDC Trusted Publishing
+# binds the package to a *specific workflow filename* — `@buildproven/license-core`
+# was first published with its trusted publisher pointed at this file. Moving the
+# `npm publish` call into another workflow would break the OIDC identity check.
+#
+# It is invoked two ways, both tokenless (no PAT, no npm token):
+#   1. `workflow_call` — release-please.yml calls this in the SAME workflow run
+#      right after it cuts a release. Because it's an in-run call (not a
+#      tag-push event), GitHub's GITHUB_TOKEN cross-workflow trigger suppression
+#      is irrelevant — so no release PAT is needed.
+#   2. `workflow_dispatch` — manual recovery escape hatch. If an auto-publish
+#      ever fails after the release/tag was already cut, re-run this against the
+#      tag to complete the publish. It is idempotent: it skips if the version is
+#      already on npm, so re-running can never error on a partial release.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref (tag) to check out and publish'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref (tag) to check out and publish, e.g. v1.2.0'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # least privilege — only needs to read code to build/publish
+      id-token: write # npm OIDC Trusted Publishing (provenance)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Publish exactly the released commit/ref.
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          # Pinning Node 20 — Node 22.22.2 in the GitHub-hosted toolcache ships
+          # with a broken npm that can't `npm install -g npm@*` (missing
+          # transitive `promise-retry`). Revisit when Node 22's bundled npm fixes
+          # this OR when v5 of these actions ship Node 24 by default.
+          node-version: '20'
+          # No registry-url here — setup-node's auto-generated .npmrc would
+          # inject NODE_AUTH_TOKEN and break OIDC trusted publishing.
+
+      # Upgrade npm to a version that supports Trusted Publishing (>=11.5.1).
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      - run: npm run build
+
+      # Idempotency guard: if this exact version is already on npm (e.g. a prior
+      # run published successfully but a later step failed, or a manual recovery
+      # run is racing the auto-publish), skip the publish so re-runs never error.
+      - id: check
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          PKG_NAME="$(node -p "require('./package.json').name")"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} already on npm — skipping publish."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # OIDC Trusted Publishing — no token needed.
+      # https://docs.npmjs.com/trusted-publishers
+      - if: ${{ steps.check.outputs.already_published == 'false' }}
+        run: npm publish --access public --provenance

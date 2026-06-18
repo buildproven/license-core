@@ -2,18 +2,27 @@ name: Release Please
 
 # release-please maintains a "release PR" that aggregates Conventional Commits
 # landing on `main`. When that PR is merged, this workflow creates a GitHub
-# Release, pushes the tag `v<version>` (e.g. v1.2.0), AND publishes to npm — all
-# in a SINGLE workflow run.
+# Release, pushes the tag `v<version>` (e.g. v1.2.0), AND triggers the npm
+# publish — all in a SINGLE workflow run.
 #
-# Why publishing lives here (and not a separate tag-triggered workflow):
+# Why this is zero-touch (no PAT, no manual owner step):
 #   GitHub deliberately suppresses workflow triggering for events (tag/branch
 #   pushes, releases) created using the default GITHUB_TOKEN. A separate
 #   `on: push: tags` publish workflow would therefore NOT fire after
-#   release-please pushed the tag with GITHUB_TOKEN — unless we authenticated
-#   release-please with a fine-grained PAT. By folding the publish steps into
-#   THIS job (guarded on `releases_created`), the cross-workflow trigger
-#   suppression is irrelevant: no PAT, no manual owner action required. Fully
-#   zero-touch under GITHUB_TOKEN + npm OIDC Trusted Publishing.
+#   release-please pushed the tag with GITHUB_TOKEN — which previously forced a
+#   fine-grained release PAT as a manual owner step.
+#
+#   Instead, when release-please cuts a release this workflow CALLS publish.yml
+#   directly via `workflow_call` (the `publish` job below). An in-run
+#   `workflow_call` is not an event trigger, so GITHUB_TOKEN's cross-workflow
+#   suppression is irrelevant — no PAT needed.
+#
+#   publish.yml is kept as a separate file (rather than inlining its steps here)
+#   on purpose: npm OIDC Trusted Publishing binds the package to a SPECIFIC
+#   workflow filename, and @buildproven/license-core's trusted publisher is bound
+#   to `publish.yml`. Keeping the publish in that file preserves the OIDC binding
+#   with no risky npm-side reconfiguration, and keeps a `workflow_dispatch`
+#   manual recovery path on the same file.
 
 on:
   push:
@@ -24,59 +33,34 @@ permissions:
   contents: write # push tags, create releases, commit CHANGELOG
   pull-requests: write # open/maintain the release PR
   issues: write # release-please manages autorelease labels
-  id-token: write # npm OIDC Trusted Publishing (provenance)
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          # GITHUB_TOKEN is sufficient: publishing happens in this same job, so
-          # the suppressed cross-workflow tag trigger no longer matters.
+          # GITHUB_TOKEN is sufficient: the publish runs in this same workflow
+          # run via workflow_call, so the suppressed cross-workflow tag trigger
+          # no longer matters.
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      # The steps below run ONLY when release-please actually cut a release on
-      # this push (i.e. the release PR was just merged). They publish the exact
-      # commit that was tagged via OIDC Trusted Publishing — no npm token.
-      - uses: actions/checkout@v4
-        if: ${{ steps.release.outputs.releases_created == 'true' }}
-        with:
-          # Check out the tag release-please just created so we publish exactly
-          # the released commit/ref.
-          ref: ${{ steps.release.outputs.tag_name }}
-
-      - uses: actions/setup-node@v4
-        if: ${{ steps.release.outputs.releases_created == 'true' }}
-        with:
-          # Pinning Node 20 — Node 22.22.2 in the GitHub-hosted toolcache ships
-          # with a broken npm that can't `npm install -g npm@*` (missing
-          # transitive `promise-retry`). Revisit when Node 22's bundled npm fixes
-          # this OR when v5 of these actions ship Node 24 by default.
-          node-version: '20'
-          # No registry-url here — setup-node's auto-generated .npmrc would
-          # inject NODE_AUTH_TOKEN and break OIDC trusted publishing.
-
-      # Upgrade npm to a version that supports Trusted Publishing (>=11.5.1).
-      - if: ${{ steps.release.outputs.releases_created == 'true' }}
-        run: npm install -g npm@latest
-
-      - if: ${{ steps.release.outputs.releases_created == 'true' }}
-        run: npm ci
-
-      - if: ${{ steps.release.outputs.releases_created == 'true' }}
-        run: npm run typecheck
-
-      - if: ${{ steps.release.outputs.releases_created == 'true' }}
-        run: npm test
-
-      - if: ${{ steps.release.outputs.releases_created == 'true' }}
-        run: npm run build
-
-      # OIDC Trusted Publishing — no token needed.
-      # https://docs.npmjs.com/trusted-publishers
-      - if: ${{ steps.release.outputs.releases_created == 'true' }}
-        run: npm publish --access public --provenance
+  # Publish to npm ONLY when release-please actually cut a release on this push
+  # (i.e. the release PR was just merged). Runs in the same workflow run, so no
+  # PAT is required. The publish itself lives in publish.yml to preserve the npm
+  # OIDC trusted-publisher binding (see header).
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    uses: ./.github/workflows/publish.yml
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
+    permissions:
+      contents: read
+      id-token: write # npm OIDC Trusted Publishing (provenance)
