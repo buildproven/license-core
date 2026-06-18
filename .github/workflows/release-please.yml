@@ -1,31 +1,19 @@
 name: Release Please
 
 # release-please maintains a "release PR" that aggregates Conventional Commits
-# landing on `main`. When that PR is merged, this action creates a GitHub Release
-# and pushes the tag `v<version>` (e.g. v1.2.0).
+# landing on `main`. When that PR is merged, this workflow creates a GitHub
+# Release, pushes the tag `v<version>` (e.g. v1.2.0), AND publishes to npm — all
+# in a SINGLE workflow run.
 #
-# Composition with publish.yml (DO NOT duplicate publishing here):
-#   - publish.yml triggers on `push: tags: v*.*.*` and publishes to npm via OIDC.
-#   - This workflow's ONLY job is to cut the tag/release; publish.yml then fires.
-#
-# REQUIRED OWNER ACTION — RELEASE_PLEASE_TOKEN:
+# Why publishing lives here (and not a separate tag-triggered workflow):
 #   GitHub deliberately suppresses workflow triggering for events (tag/branch
-#   pushes, releases) created using the default GITHUB_TOKEN. If release-please
-#   pushed the tag with GITHUB_TOKEN, publish.yml's `on: push: tags` would NOT
-#   fire — npm would never publish. The standard documented fix is to run
-#   release-please under a separate identity (a PAT), so the tag push is a
-#   "real" event that DOES trigger publish.yml.
-#
-#   Repo owner must create a fine-grained Personal Access Token scoped to THIS
-#   repository (buildproven/license-core) with these repository permissions:
-#       - Contents:      Read and write   (push tags, create releases, commit CHANGELOG)
-#       - Pull requests: Read and write   (open/maintain the release PR)
-#   Save it as the Actions secret `RELEASE_PLEASE_TOKEN`
-#   (Settings → Secrets and variables → Actions → New repository secret).
-#
-#   Until that secret exists, this workflow will fail to authenticate (or, if it
-#   ran with GITHUB_TOKEN, would silently not trigger publish.yml). publish.yml
-#   also retains `workflow_dispatch` as a manual fallback if needed.
+#   pushes, releases) created using the default GITHUB_TOKEN. A separate
+#   `on: push: tags` publish workflow would therefore NOT fire after
+#   release-please pushed the tag with GITHUB_TOKEN — unless we authenticated
+#   release-please with a fine-grained PAT. By folding the publish steps into
+#   THIS job (guarded on `releases_created`), the cross-workflow trigger
+#   suppression is irrelevant: no PAT, no manual owner action required. Fully
+#   zero-touch under GITHUB_TOKEN + npm OIDC Trusted Publishing.
 
 on:
   push:
@@ -33,17 +21,62 @@ on:
       - main
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: write # push tags, create releases, commit CHANGELOG
+  pull-requests: write # open/maintain the release PR
+  issues: write # release-please manages autorelease labels
+  id-token: write # npm OIDC Trusted Publishing (provenance)
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v5
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          # PAT (NOT GITHUB_TOKEN) so the pushed tag triggers publish.yml.
-          # See the REQUIRED OWNER ACTION block above.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          # GITHUB_TOKEN is sufficient: publishing happens in this same job, so
+          # the suppressed cross-workflow tag trigger no longer matters.
+          token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # The steps below run ONLY when release-please actually cut a release on
+      # this push (i.e. the release PR was just merged). They publish the exact
+      # commit that was tagged via OIDC Trusted Publishing — no npm token.
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        with:
+          # Check out the tag release-please just created so we publish exactly
+          # the released commit/ref.
+          ref: ${{ steps.release.outputs.tag_name }}
+
+      - uses: actions/setup-node@v4
+        if: ${{ steps.release.outputs.releases_created == 'true' }}
+        with:
+          # Pinning Node 20 — Node 22.22.2 in the GitHub-hosted toolcache ships
+          # with a broken npm that can't `npm install -g npm@*` (missing
+          # transitive `promise-retry`). Revisit when Node 22's bundled npm fixes
+          # this OR when v5 of these actions ship Node 24 by default.
+          node-version: '20'
+          # No registry-url here — setup-node's auto-generated .npmrc would
+          # inject NODE_AUTH_TOKEN and break OIDC trusted publishing.
+
+      # Upgrade npm to a version that supports Trusted Publishing (>=11.5.1).
+      - if: ${{ steps.release.outputs.releases_created == 'true' }}
+        run: npm install -g npm@latest
+
+      - if: ${{ steps.release.outputs.releases_created == 'true' }}
+        run: npm ci
+
+      - if: ${{ steps.release.outputs.releases_created == 'true' }}
+        run: npm run typecheck
+
+      - if: ${{ steps.release.outputs.releases_created == 'true' }}
+        run: npm test
+
+      - if: ${{ steps.release.outputs.releases_created == 'true' }}
+        run: npm run build
+
+      # OIDC Trusted Publishing — no token needed.
+      # https://docs.npmjs.com/trusted-publishers
+      - if: ${{ steps.release.outputs.releases_created == 'true' }}
+        run: npm publish --access public --provenance
