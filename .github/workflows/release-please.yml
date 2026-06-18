@@ -5,29 +5,47 @@ name: Release Please
 # Release, pushes the tag `v<version>` (e.g. v1.2.0), AND triggers the npm
 # publish — all in a SINGLE workflow run.
 #
-# Why this is zero-touch (no PAT, no manual owner step):
-#   GitHub deliberately suppresses workflow triggering for events (tag/branch
-#   pushes, releases) created using the default GITHUB_TOKEN. A separate
-#   `on: push: tags` publish workflow would therefore NOT fire after
-#   release-please pushed the tag with GITHUB_TOKEN — which previously forced a
-#   fine-grained release PAT as a manual owner step.
+# This file is the SINGLE npm-trusted initiating workflow for EVERY publish
+# path. npm allows exactly one trusted-publisher workflow filename per package
+# ("Each package can only have one trusted publisher configured at a time" —
+# https://docs.npmjs.com/trusted-publishers/), and for reusable workflows npm
+# validates the OIDC token against the *initiating* (top-level) workflow, not
+# the file that runs `npm publish`. So both publish paths MUST start here:
 #
-#   Instead, when release-please cuts a release this workflow CALLS publish.yml
-#   directly via `workflow_call` (the `publish` job below). An in-run
-#   `workflow_call` is not an event trigger, so GITHUB_TOKEN's cross-workflow
-#   suppression is irrelevant — no PAT needed.
+#   1. Automatic (on: push to main) — when release-please cuts a release, the
+#      `publish` job calls publish.yml via `workflow_call` in the SAME run.
+#   2. Manual recovery (on: workflow_dispatch) — if an auto-publish ever fails
+#      after the tag/release was already cut, dispatch THIS workflow with the
+#      tag ref; the same `publish` job calls publish.yml. publish.yml is
+#      idempotent (skips if the version is already on npm), so this is safe to
+#      re-run. Recovery is dispatched here (not on publish.yml directly) so the
+#      OIDC identity stays `release-please.yml` for the recovery path too.
 #
-#   publish.yml is kept as a separate file (rather than inlining its steps here)
-#   on purpose: npm OIDC Trusted Publishing binds the package to a SPECIFIC
-#   workflow filename, and @buildproven/license-core's trusted publisher is bound
-#   to `publish.yml`. Keeping the publish in that file preserves the OIDC binding
-#   with no risky npm-side reconfiguration, and keeps a `workflow_dispatch`
-#   manual recovery path on the same file.
+#   REQUIRED OWNER ACTION (one-time, npm-side): the trusted publisher for
+#   @buildproven/license-core must name THIS workflow filename
+#   (`release-please.yml`). npmjs.com → package → Settings → Trusted Publisher.
+#   Because npm permits only one trusted workflow, publish.yml is a *reusable*
+#   workflow only (no independent event trigger) and is never an OIDC initiator.
+#
+# Why this is zero-touch (no PAT): GitHub suppresses workflow triggering for
+# events (tag/branch pushes) made with the default GITHUB_TOKEN, so a separate
+# `on: push: tags` publish workflow would NOT fire after release-please pushed
+# the tag with GITHUB_TOKEN. Calling publish.yml in-run via `workflow_call` is
+# not an event trigger, so that suppression is irrelevant — no PAT needed.
 
 on:
   push:
     branches:
       - main
+  # Manual recovery path — re-run a publish for an already-cut release/tag.
+  # Initiating here (not on publish.yml) keeps the npm OIDC identity as
+  # release-please.yml for every publish, satisfying npm's single-publisher rule.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref (tag) to publish, e.g. v1.2.0'
+        required: true
+        type: string
 
 permissions:
   contents: write # push tags, create releases, commit CHANGELOG
@@ -37,6 +55,9 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    # Only run release-please on the automatic push-to-main path. On a manual
+    # workflow_dispatch recovery we skip straight to publish with the given ref.
+    if: ${{ github.event_name == 'push' }}
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -51,16 +72,28 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Publish to npm ONLY when release-please actually cut a release on this push
-  # (i.e. the release PR was just merged). Runs in the same workflow run, so no
-  # PAT is required. The publish itself lives in publish.yml to preserve the npm
-  # OIDC trusted-publisher binding (see header).
+  # Publish to npm. Two entry conditions, both initiating from THIS file so npm
+  # OIDC always sees `release-please.yml` as the trusted publisher:
+  #   - automatic: release-please just cut a release on push (releases_created).
+  #   - manual:    workflow_dispatch supplied a tag ref to (re)publish.
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.releases_created == 'true' }}
+    # On workflow_dispatch the release-please job is skipped (its own `if` gates
+    # it to push). A dependent job is skipped when a `needs` dependency is
+    # skipped UNLESS its `if` is written to tolerate that — hence `!cancelled()`,
+    # which evaluates the condition regardless of the dependency's skipped state.
+    # The body then runs only on the two valid publish conditions.
+    if: >-
+      ${{
+        !cancelled() &&
+        (
+          (github.event_name == 'push' && needs.release-please.outputs.releases_created == 'true') ||
+          github.event_name == 'workflow_dispatch'
+        )
+      }}
     uses: ./.github/workflows/publish.yml
     with:
-      ref: ${{ needs.release-please.outputs.tag_name }}
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || needs.release-please.outputs.tag_name }}
     permissions:
       contents: read
       id-token: write # npm OIDC Trusted Publishing (provenance)

@@ -1,32 +1,33 @@
 name: Publish to npm
 
-# This workflow owns the npm publish step and NOTHING ELSE. It deliberately
-# keeps its filename stable (`publish.yml`) because npm OIDC Trusted Publishing
-# binds the package to a *specific workflow filename* — `@buildproven/license-core`
-# was first published with its trusted publisher pointed at this file. Moving the
-# `npm publish` call into another workflow would break the OIDC identity check.
+# Reusable workflow that owns the npm publish step and NOTHING ELSE.
 #
-# It is invoked two ways, both tokenless (no PAT, no npm token):
-#   1. `workflow_call` — release-please.yml calls this in the SAME workflow run
-#      right after it cuts a release. Because it's an in-run call (not a
-#      tag-push event), GitHub's GITHUB_TOKEN cross-workflow trigger suppression
-#      is irrelevant — so no release PAT is needed.
-#   2. `workflow_dispatch` — manual recovery escape hatch. If an auto-publish
-#      ever fails after the release/tag was already cut, re-run this against the
-#      tag to complete the publish. It is idempotent: it skips if the version is
-#      already on npm, so re-running can never error on a partial release.
+# IMPORTANT — this is a REUSABLE workflow ONLY (`workflow_call`). It has no
+# direct event trigger, so it is NEVER the initiating workflow for an OIDC
+# publish. That is deliberate:
+#
+#   * npm allows exactly ONE trusted-publisher workflow filename per package
+#     ("Each package can only have one trusted publisher configured at a time" —
+#     https://docs.npmjs.com/trusted-publishers/).
+#   * For reusable workflows npm validates the OIDC token against the
+#     *initiating* (top-level) workflow, not the file that runs `npm publish`:
+#     "validation checks the calling workflow's name instead of the workflow
+#     that actually contains the publish command."
+#
+#   Therefore EVERY publish — automatic and manual recovery — is initiated from
+#   release-please.yml and calls this file via `workflow_call`. npm's single
+#   trusted publisher is bound to `release-please.yml`. If this file had its own
+#   `workflow_dispatch`/`push` trigger, that path's OIDC identity would be
+#   `publish.yml` and npm would reject it (only one trusted filename allowed).
+#   To run a manual recovery publish, dispatch release-please.yml with the tag
+#   ref — see its header. This workflow is idempotent (skips if the version is
+#   already on npm), so recovery re-runs can never error on a partial release.
 
 on:
   workflow_call:
     inputs:
       ref:
         description: 'Git ref (tag) to check out and publish'
-        required: true
-        type: string
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: 'Git ref (tag) to check out and publish, e.g. v1.2.0'
         required: true
         type: string
 
