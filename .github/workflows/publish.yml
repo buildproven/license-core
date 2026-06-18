@@ -1,19 +1,61 @@
 name: Publish to npm
 
+# Reusable workflow that owns the npm publish step and NOTHING ELSE.
+#
+# IMPORTANT — this is a REUSABLE workflow ONLY (`workflow_call`). It has no
+# direct event trigger, so it is NEVER the initiating workflow for an OIDC
+# publish. That is deliberate:
+#
+#   * npm allows exactly ONE trusted-publisher workflow filename per package
+#     ("Each package can only have one trusted publisher configured at a time" —
+#     https://docs.npmjs.com/trusted-publishers/).
+#   * For reusable workflows npm validates the OIDC token against the
+#     *initiating* (top-level) workflow, not the file that runs `npm publish`:
+#     "validation checks the calling workflow's name instead of the workflow
+#     that actually contains the publish command."
+#
+#   Therefore EVERY publish — automatic and manual recovery — is initiated from
+#   release-please.yml and calls this file via `workflow_call`. npm's single
+#   trusted publisher is bound to `release-please.yml`. If this file had its own
+#   `workflow_dispatch`/`push` trigger, that path's OIDC identity would be
+#   `publish.yml` and npm would reject it (only one trusted filename allowed).
+#   To run a manual recovery publish, dispatch release-please.yml with the tag
+#   ref — see its header. This workflow is idempotent (skips if the version is
+#   already on npm), so recovery re-runs can never error on a partial release.
+
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Git ref (tag) to check out and publish'
+        required: true
+        type: string
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      id-token: write
+      contents: read # least privilege — only needs to read code to build/publish
+      id-token: write # npm OIDC Trusted Publishing (provenance)
     steps:
+      # Validate the ref BEFORE checkout. On the manual recovery path the ref is
+      # an operator-supplied dispatch input; a typo (e.g. "1.2.0" or "main")
+      # would otherwise check out and publish the wrong thing. Require a
+      # `v<semver>` release tag so only intended releases can be published.
+      - name: Validate release ref
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          if ! printf '%s' "$REF" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Invalid publish ref '$REF' — expected a release tag like v1.2.0."
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
+        with:
+          # Publish exactly the released commit/ref.
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -36,6 +78,21 @@ jobs:
 
       - run: npm run build
 
+      # Idempotency guard: if this exact version is already on npm (e.g. a prior
+      # run published successfully but a later step failed, or a manual recovery
+      # run is racing the auto-publish), skip the publish so re-runs never error.
+      - id: check
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          PKG_NAME="$(node -p "require('./package.json').name")"
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${PKG_NAME}@${PKG_VERSION} already on npm — skipping publish."
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # OIDC Trusted Publishing — no token needed.
       # https://docs.npmjs.com/trusted-publishers
-      - run: npm publish --access public --provenance
+      - if: ${{ steps.check.outputs.already_published == 'false' }}
+        run: npm publish --access public --provenance
