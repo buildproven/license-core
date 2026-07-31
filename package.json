@@ -25,7 +25,10 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "security:audit": "npm audit --audit-level high --omit=dev",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -33,7 +36,12 @@
     "prettier": "^3.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "eslint": "^9.12.0",
+    "eslint-plugin-security": "^3.0.1",
+    "globals": "^15.9.0",
+    "@typescript-eslint/eslint-plugin": "^8.9.0",
+    "@typescript-eslint/parser": "^8.9.0"
   },
   "engines": {
     "node": ">=18"

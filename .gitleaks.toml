@@ -1,0 +1,13 @@
+title = "license-core gitleaks config"
+
+[extend]
+useDefault = true
+
+# Test fixtures use a fixed placeholder license key
+# (QAA-ABCD-1234-EFGH-5678) across every *.test.ts file — never a real
+# credential. Allowlisting the tests/ directory rather than the literal
+# string so any future placeholder fixture doesn't need a new entry.
+[allowlist]
+paths = [
+  '''(^|/)tests?/''',
+]
