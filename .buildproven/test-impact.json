@@ -32,10 +32,7 @@
       "commands": [
         {
           "executable": "npm",
-          "args": [
-            "run",
-            "test"
-          ]
+          "args": ["run", "test"]
         }
       ]
     }
@@ -43,10 +40,7 @@
   "fallback": [
     {
       "executable": "npm",
-      "args": [
-        "run",
-        "test"
-      ]
+      "args": ["run", "test"]
     }
   ]
 }
