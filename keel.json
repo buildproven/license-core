@@ -1,0 +1,11 @@
+{
+  "checks": {
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck",
+    "build": "npm run build",
+    "test": "npm test"
+  },
+  "testCommand": "npm test",
+  "linearProject": "license-core",
+  "dailyBudgetUsd": 5
+}
