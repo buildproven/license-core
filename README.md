@@ -9,7 +9,7 @@ Tiny, frozen-contract license signing & verification primitives. Deterministic J
 npm install @buildproven/license-core
 ```
 
-**Node.js:** the published package supports the range in `package.json` `engines` (Node >= 18, build target `node18`); CI tests Node 20 and 24.18.0. Development and releases use Node 24.18.0 from `.nvmrc`. `engines` stays wide on purpose: it is a consumer contract, and narrowing it would break consumers that install with `engine-strict` on older Node lines.
+**Node.js:** the published package supports the range in `package.json` `engines` (Node >= 18, build target `node18`); CI tests Node 20, 22, and 24.18.0 (Node 18 is end-of-life and the test runner no longer supports it). Development uses Node 24.18.0 from `.nvmrc`; releases use the same version. `engines` stays wide on purpose: it is a consumer contract, and narrowing it would break consumers that install with `engine-strict` on older Node lines.
 
 ## Why this exists
 
@@ -244,7 +244,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc' # Node 24.18.0 bundles npm 11.16.0 (>=11.5.1 for Trusted Publishing)
+          node-version: '24' # Node 24 bundles npm 11 (Trusted Publishing needs npm >=11.5.1)
           # NO registry-url here — it would inject a fake NODE_AUTH_TOKEN
       - run: npm ci
       - run: npm test

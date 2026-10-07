@@ -361,8 +361,8 @@ jobs:
       fail-fast: false
       matrix:
         # 20 = oldest runtime of a published consumer (qa-architect, engine-strict);
-        # 24.18.0 = the .nvmrc build runtime.
-        node-version: ['20', '24.18.0']
+        # 22 = maintenance LTS; 24.18.0 = the .nvmrc build runtime (keep in sync).
+        node-version: ['20', '22', '24.18.0']
 
     steps:
       - name: Checkout code
