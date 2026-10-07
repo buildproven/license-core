@@ -242,7 +242,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24.18.0'
           # NO registry-url here — it would inject a fake NODE_AUTH_TOKEN
       - run: npm install -g npm@latest # need >=11.5.1 for Trusted Publishing
       - run: npm ci
