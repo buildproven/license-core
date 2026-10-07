@@ -88,7 +88,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24.18.0'
+          node-version-file: '.nvmrc'
 
       - name: Detect Package Manager
         id: detect-pm
@@ -192,7 +192,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24.18.0'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Setup pnpm
@@ -286,7 +286,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24.18.0'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Setup pnpm
@@ -360,7 +360,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['24.18.0']
+        # 20 = oldest runtime of a published consumer (qa-architect, engine-strict);
+        # 24.18.0 = the .nvmrc build runtime.
+        node-version: ['20', '24.18.0']
 
     steps:
       - name: Checkout code
@@ -428,7 +430,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24.18.0'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Setup pnpm
