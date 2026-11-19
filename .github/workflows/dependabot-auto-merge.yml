@@ -1,0 +1,57 @@
+# Dependabot auto-merge with the App token (machine-setup REQ-DEPS-5), for a repo that deploys or releases on push.
+# Copy this file unchanged to .github/workflows/dependabot-auto-merge.yml.
+# It turns on GitHub auto-merge (squash) for a Dependabot PR whose update type is patch or minor;
+# branch protection and required CI then decide when it merges. Majors stay open for a card.
+# It turns auto-merge on with a buildproven-automerge GitHub App token (BUI-1965): GitHub starts no workflow
+# run from a merge made with github.token, so a repo that deploys on push would never deploy. The App's
+# ID and key are Dependabot secrets AUTOMERGE_APP_ID and AUTOMERGE_APP_KEY in each repo.
+# It never checks out or runs PR code, so no token meets dependency code. The runner image has curl and jq, not gh.
+name: Dependabot auto-merge (App)
+
+on: pull_request_target
+
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    # The actor check skips a run a human started by pushing to the Dependabot branch.
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+    timeout-minutes: 5
+    # The built-in token only reads; the one write uses the App token.
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-latest"') }}
+    steps:
+      - name: Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      - name: App token
+        id: app
+        # An Actions update would run with the deploy secrets once merged, so it waits for review.
+        if: (steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor') && steps.meta.outputs.package-ecosystem != 'github_actions'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.AUTOMERGE_APP_ID }}
+          private-key: ${{ secrets.AUTOMERGE_APP_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Turn on auto-merge for a patch or minor update
+        if: steps.app.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          PR_ID: ${{ github.event.pull_request.node_id }}
+        run: |
+          set -euo pipefail
+          body=$(jq -n --arg id "$PR_ID" '{
+            query: "mutation($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) { pullRequest { number } } }",
+            variables: {id: $id}}')
+          resp=$(curl -fsS -X POST https://api.github.com/graphql \
+            -H "Authorization: bearer $GH_TOKEN" -H 'Content-Type: application/json' -d "$body")
+          if ! jq -e '.errors == null' <<<"$resp" >/dev/null; then
+            echo "::error::auto-merge not turned on: $(jq -c '.errors' <<<"$resp")"
+            exit 1
+          fi
+          echo "auto-merge (squash) on for PR $(jq -r '.data.enablePullRequestAutoMerge.pullRequest.number' <<<"$resp")"
